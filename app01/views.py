@@ -1,8 +1,10 @@
 import functools
+import json
 
 import requests
 from django.http import JsonResponse
 from django.shortcuts import render, HttpResponse, redirect
+from urllib.parse import urlencode
 
 # Create your views here.
 from app01 import models
@@ -48,16 +50,19 @@ def bind_qcode(request):
     :param request:
     :return:
     """
+    # token :b5b87bf9590ca8d260ac4d7e9e2a75a2
     if request.method == 'GET':
         ret = {'code': 1000}
         try:
             access_url = 'https://open.weixin.qq.com/connect/oauth2/authorize?appid={appid}&redirect_uri={redirect_uri}&response_type=code&scope=snsapi_userinfo&state={state}#wechat_redirect'
             access_url = access_url.format(
                 appid="wx8aa094571ee97536",
-                redirect_uri='39.108.134.78:8000/callback',
+                redirect_uri='http://39.108.134.78:8000/callback',
                 state=request.session['user_info']['uid']
             )
+
             ret['data'] = access_url
+
         except Exception as e:
             ret['code'] = 1001
             ret['msg'] = str(e)
@@ -77,7 +82,7 @@ def callback(request):
     state = request.GET.get('state')
 
     ret = requests.get(url='https://api.weixin.qq.com/sns/oauth2/access_token', params={
-        "appid":"wx8aa094571ee97536",
+        "appid": "wx8aa094571ee97536",
         "secret": "779a492b89fe2a9c369531cd35ea200d",
         "code": code,
         "grant_type": "authorization_code"
@@ -94,4 +99,42 @@ def callback(request):
     return HttpResponse(response)
 
 
-    
+def sendmsg(request):
+    def get_access_token():
+        result = requests.get('https://api.weixin.qq.com/cgi-bin/token', params={
+            "grant_type": "client_credential",
+            "appid": "wx8aa094571ee97536",
+            "appsecret": "779a492b89fe2a9c369531cd35ea200d"
+        }).json()
+        if result.get("access_token"):
+            access_token = result.get("access_token")
+        else:
+            access_token = None
+        return access_token
+
+    access_token = get_access_token()
+    openid1 = models.UserInfo.objects.filter(id=1).first().wx_id
+    openid2 = models.UserInfo.objects.filter(id=2).first().wx_id
+
+    def send_custom_msg():
+        body = {
+            "touser": [openid1, openid2],
+            "msgtype": "text",
+            "text": {"content": "耗时24h终于等到你"}
+        }
+
+        response = requests.post(url='https://api.weixin.qq.com/cgi-bin/message/mass/send',
+                                 params={
+                                     "access_token": access_token
+                                 },
+                                 data=bytes(json.dumps(body, ensure_ascii=False), encoding='utf-8')
+                                 )
+        result = response.json()
+        return result
+
+    result = send_custom_msg()
+    if result.get('errcode') == 0:
+        return HttpResponse('发送成功')
+    return HttpResponse('发送失败')
+
+

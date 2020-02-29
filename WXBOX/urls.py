@@ -23,5 +23,6 @@ urlpatterns = [
     path('login/', views.login),
     path('bind/', views.bind),
     path('bind_qcode/', views.bind_qcode),
-    path('callback/', views.callback)
+    path('callback/', views.callback),
+    path('sendmsg/', views.sendmsg)
 ]
